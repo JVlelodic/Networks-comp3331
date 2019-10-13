@@ -75,13 +75,8 @@ public class WebServer {
 			    	response.print("Connection: close\r\n");
 			    	response.print("\r\n");
 
-			    	BufferedReader imageBR = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-			    	String line;
-			    	while((line = imageBR.readLine()) != null) {
-			    		response.write(line + "\r\n" );
-			    	}
+			    	//Don''t know how tto return HTTP for png files
 			    	response.flush();
-			    	imageBR.close();
 		    	}
 
 		    }
