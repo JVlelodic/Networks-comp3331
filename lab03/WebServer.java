@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.Files;
 
 public class WebServer {
 
@@ -17,7 +18,6 @@ public class WebServer {
 
         //We will listen on this port for connection request from clients
 		ServerSocket welcomeSocket = new ServerSocket(serverPort);
-//        System.out.println("Server is ready :");
 
 		while (true){
 
@@ -27,60 +27,40 @@ public class WebServer {
 		    // create read stream to get input
 		    BufferedReader input = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 		    String clientSentence = input.readLine();
-//		    System.out.println(clientSentence);
 
 		    // read and filter request
 		    String[] getRequest = clientSentence.split(" ");
 		    String requestString = getRequest[1];
-		    System.out.println(requestString);
 		    StringBuilder builder = new StringBuilder(requestString);
 		    builder.deleteCharAt(0);
 		    String path = CURRDIR + builder.toString();
 
 		    //create output connection
-		    PrintWriter response = new PrintWriter(connectionSocket.getOutputStream());
 		    File file = new File(path);
-		    System.out.println(file.exists());
 
-		    if(!file.isFile()) {
-		    	response.print("HTTP/1.1 404\r\n");
-		    	response.print("Content-Type: text/html\r\n");
-		    	response.print("Connection: close\r\n");
-		    	response.print("\r\n");
-		    	response.print("<H1>404 Not Found</H1>" + "\r\n");
-		    	response.flush();
+	    	DataOutputStream response = new DataOutputStream(connectionSocket.getOutputStream());
+
+	    	if(!file.isFile()) {
+		    	response.writeBytes("HTTP/1.1 404\r\n");
+		    	response.writeBytes("Content-Type: text/html\r\n");
+		    	response.writeBytes("Connection: close\r\n");
+		    	response.writeBytes("\r\n");
+		    	response.writeBytes("<H1>404 Not Found</H1>" + "\r\n");
 		    }else{
-		    	System.out.println(requestString);
+				byte[] fileContent = Files.readAllBytes(file.toPath());
+
 			    String[] convert = requestString.split("\\.");
 			    String fileType = convert[1];
-		    	//For html files
+			    response.writeBytes("HTTP/1.1 200\r\n");
 			    if(fileType.equals("html")) {
-			    	response.print("HTTP/1.1 200\r\n");
-			    	response.print("Content-Type: text/html\r\n");
-			    	response.print("Connection: close\r\n");
-			    	response.print("\r\n");
-
-			    	FileReader fr = new FileReader(file);
-			    	BufferedReader br = new BufferedReader(fr);
-			    	String line;
-			    	while((line = br.readLine()) != null) {
-			    		response.write(line + "\r\n" );
-			    	}
-			    	response.flush();
-			    	br.close();
-		    	}else if(fileType.equals("png")) {
-		    		System.out.println("This is an image");
-		    		response.print("HTTP/1.1 200\r\n");
-			    	response.print("Content-Type: image/png\r\n");
-			    	response.print("Connection: close\r\n");
-			    	response.print("\r\n");
-
-			    	//Don''t know how tto return HTTP for png files
-			    	response.flush();
-		    	}
-
+			    	response.writeBytes("Content-Type: text/html\r\n");
+			    }else if(fileType.equals("png")) {
+			    	response.writeBytes("Content-Type: image/png\r\n");
+			    }
+			    response.writeBytes("Connection: close\r\n");
+		    	response.writeBytes("\r\n");
+		    	response.write(fileContent);
 		    }
-		    input.close();
             connectionSocket.close();
 		}
 	}
