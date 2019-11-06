@@ -32,7 +32,16 @@ public class Server extends Thread {
 		}
 	}
 	
-	private static void userAuthenticate() {
+	//Checks package contents to confirm whether user/pass is correct 
+	private static TCPackage userAuthenticate(ArrayList<String> data) {
+		String username = data.get(0); 
+		String password = data.get(1); 
+		if(users.containsKey(username) && users.get(username).equals(password)) {
+			loggedUsers.add(data.get(0)); 
+			return new TCPackage("login/pass"); 
+		}else {
+			return new TCPackage("login/fail"); 
+		}
 		
 	}
 	
@@ -60,22 +69,39 @@ public class Server extends Thread {
 		    Socket connectionSocket = welcomeSocket.accept();
             /*When a client knocks on this door, the program invokes the accept( ) method for welcomeSocket, which creates a new socket in the server, called connectionSocket, dedicated to this particular client. The client and server then complete the handshaking, creating a TCP connection between the client’s clientSocket and the server’s connectionSocket. With the TCP connection established, the client and server can now send bytes to each other over the connection. With TCP, all bytes sent from one side not are not only guaranteed to arrive at the other side but also guaranteed to arrive in order*/
             
-		    BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
-		    String clientInput; 
-		    ArrayList<String> tmp = new ArrayList<>(); 
+//		    BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+//		    String clientInput; 
+//		    ArrayList<String> tmp = new ArrayList<>(); 
 		    
-		    for(clientInput = inFromClient.readLine(); !clientInput.equals("Connection: close"); clientInput = inFromClient.readLine()) {
-		    	tmp.add(clientInput); 
+//		    for(clientInput = inFromClient.readLine(); !clientInput.equals("Connection: close"); clientInput = inFromClient.readLine()) {
+//		    	tmp.add(clientInput); 
+//		    }
+//		    
+//		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream()); 
+//		    if(users.containsKey(tmp.get(1)) && users.get(tmp.get(1)).equals(tmp.get(2))) {
+//		    	outToClient.writeBytes("true\n"); 
+//		    }else {
+//		    	outToClient.writeBytes("false\n");
+//		    }
+//		    
+//		    System.out.println("done"); 
+		    ObjectOutputStream outToClient = new ObjectOutputStream(connectionSocket.getOutputStream());
+		    ObjectInputStream inFromClient = new ObjectInputStream(connectionSocket.getInputStream());
+		    for(TCPackage data = (TCPackage) inFromClient.readObject(); data != null; data = (TCPackage) inFromClient.readObject()) {
+		    	String header = data.getHeader(); 
+		    	System.out.println(header);
+		    	switch(header){
+		    	case "user/authenticate":
+		    		TCPackage confirm = userAuthenticate(data.getContent()); 
+	    			outToClient.writeObject(confirm);
+	    			break; 
+		    	default:
+		    		System.out.println("invalid header"); 
+		    		connectionSocket.close();  
+		    	}
+		    	
 		    }
 		    
-		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream()); 
-		    if(users.containsKey(tmp.get(1)) && users.get(tmp.get(1)).equals(tmp.get(2))) {
-		    	outToClient.writeBytes("true\n"); 
-		    }else {
-		    	outToClient.writeBytes("false\n");
-		    }
-		    
-		    System.out.println("done"); 
 		    
 //            connectionSocket.close();
             /*In this program, after sending the capitalized sentence to the client, we close the connection socket. But since welcomeSocket remains open, another client can now knock on the door and send the server a sentence to modify.

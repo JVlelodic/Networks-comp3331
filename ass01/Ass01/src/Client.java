@@ -13,7 +13,7 @@ public class Client {
 	private static boolean logStatus = false; 
 	
 	//Prompt user to enter username and password 
-	private static boolean checkLogin(Socket connectionSocket) {
+	private static boolean checkLogin(ObjectOutputStream postObject, ObjectInputStream inObject)  {
 		try {
 			BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
 			System.out.println("Please enter username: ");
@@ -33,14 +33,20 @@ public class Client {
 			tmp.add(password); 
 			TCPackage content = new TCPackage("user/authenticate", tmp); 
 			
-			ObjectOutputStream postObject = new ObjectOutputStream(connectionSocket.getOutputStream()); 
-				
-			System.out.println("this has been done"); 
+			postObject.writeObject(content);
+					
+			TCPackage confirm = (TCPackage) inObject.readObject(); 
+			if(confirm.getHeader().equals("login/pass")) return true; 
+			return false; 
 			
-			BufferedReader getServer = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+//			BufferedReader getServer = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
 			//return the boolean value returned by the server 
-			return Boolean.parseBoolean(getServer.readLine());
+//			return Boolean.parseBoolean(getServer.readLine());
+			
 		} catch (IOException e) {
+			e.printStackTrace();
+			return false; 
+		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 			return false; 
 		}
@@ -60,9 +66,11 @@ public class Client {
 		
 		//Create socket which connects to server
 		Socket serverConnect = new Socket(serverIP, serverPort); 
-			
+		ObjectOutputStream postObject = new ObjectOutputStream(serverConnect.getOutputStream()); 
+		ObjectInputStream inObject = new ObjectInputStream(serverConnect.getInputStream()); 
+		
 		while(!logStatus) {
-			if(checkLogin(serverConnect)) {
+			if(checkLogin(postObject, inObject)) {
 				logStatus = true;
 				System.out.println("logged in"); 
 				break; 
