@@ -32,6 +32,10 @@ public class Server extends Thread {
 		}
 	}
 	
+	private static void userAuthenticate() {
+		
+	}
+	
 	public static void main(String[] args)throws Exception {
 		
 		if(args.length != 3) {
@@ -60,18 +64,19 @@ public class Server extends Thread {
 		    String clientInput; 
 		    ArrayList<String> tmp = new ArrayList<>(); 
 		    
-		    while((clientInput = inFromClient.readLine()) != null) {
+		    for(clientInput = inFromClient.readLine(); !clientInput.equals("Connection: close"); clientInput = inFromClient.readLine()) {
 		    	tmp.add(clientInput); 
 		    }
 		    
-		   
-		    System.out.println(tmp);
-		    
 		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream()); 
-		    outToClient.writeBytes("true");
+		    if(users.containsKey(tmp.get(1)) && users.get(tmp.get(1)).equals(tmp.get(2))) {
+		    	outToClient.writeBytes("true\n"); 
+		    }else {
+		    	outToClient.writeBytes("false\n");
+		    }
 		    
+		    System.out.println("done"); 
 		    
-		   
 //            connectionSocket.close();
             /*In this program, after sending the capitalized sentence to the client, we close the connection socket. But since welcomeSocket remains open, another client can now knock on the door and send the server a sentence to modify.
              */
