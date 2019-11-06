@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Server extends Thread {
@@ -8,6 +9,7 @@ public class Server extends Thread {
 	private static int blockDuration; 
 	private static int timeout; 
 	private static HashMap<String,String> users; 
+	private static ArrayList<String> loggedUsers = new ArrayList<>(); 
 	
 	private static void loadUsers() {
 		users = new HashMap<>();
@@ -29,7 +31,6 @@ public class Server extends Thread {
 			e.printStackTrace();
 		}
 	}
-
 	
 	public static void main(String[] args)throws Exception {
 		
@@ -55,43 +56,27 @@ public class Server extends Thread {
 		    Socket connectionSocket = welcomeSocket.accept();
             /*When a client knocks on this door, the program invokes the accept( ) method for welcomeSocket, which creates a new socket in the server, called connectionSocket, dedicated to this particular client. The client and server then complete the handshaking, creating a TCP connection between the client’s clientSocket and the server’s connectionSocket. With the TCP connection established, the client and server can now send bytes to each other over the connection. With TCP, all bytes sent from one side not are not only guaranteed to arrive at the other side but also guaranteed to arrive in order*/
             
-	
-
-		    // process input, change the case
-//		    String capitalizedSentence;
-//		    capitalizedSentence = clientSentence.toUpperCase() + '\n';
-
-		    //Prompt for user and password 
-		    String userPrompt = "Please enter username: \n"; 
-		    String passPrompt = "Please enter password: \n"; 
+		    BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+		    String clientInput; 
+		    ArrayList<String> tmp = new ArrayList<>(); 
 		    
-		    // send reply
-		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
-		    outToClient.writeBytes(userPrompt);
-		    
-		    // create read stream to get input
-		    BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
-		    String clientSentence;
-		    clientSentence = inFromClient.readLine();
-		    System.out.println(users.containsKey(clientSentence)); 
-		    String tmp = clientSentence; 
-		    
-		    outToClient.writeBytes(passPrompt);
-		    clientSentence = inFromClient.readLine();
-		    if(users.get(tmp).equals(clientSentence)) {
-		    	System.out.print("true");
-		    }else {
-		    	System.out.print("false");
+		    while((clientInput = inFromClient.readLine()) != null) {
+		    	tmp.add(clientInput); 
 		    }
-		    //data from client is stored in clientSentence
+		    
+		   
+		    System.out.println(tmp);
+		    
+		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream()); 
+		    outToClient.writeBytes("true");
 		    
 		    
 		   
 //            connectionSocket.close();
             /*In this program, after sending the capitalized sentence to the client, we close the connection socket. But since welcomeSocket remains open, another client can now knock on the door and send the server a sentence to modify.
              */
-		} // end of while (true)
+		} 
 
-	} // end of main()
+	} 
 
-} // end of class TCPServer
+} 

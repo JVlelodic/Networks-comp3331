@@ -8,6 +8,36 @@ import java.io.*;
 import java.net.*;
 
 public class Client {
+	
+	private static boolean logStatus = false; 
+	
+	//Prompt user to enter username and password 
+	private static boolean checkLogin(Socket connectionSocket) {
+		try {
+			BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
+			System.out.println("Please enter username: ");
+			String username = userInput.readLine(); 
+
+			System.out.println("Please enter password: "); 
+			String password = userInput.readLine();
+			
+			DataOutputStream postServer = new DataOutputStream(connectionSocket.getOutputStream());
+			postServer.writeBytes(username); 
+			postServer.writeBytes(password);
+			
+			System.out.println("this has been done"); 
+			
+			BufferedReader getServer = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
+			//return the boolean value returned by the server 
+			return Boolean.parseBoolean(getServer.readLine());
+			
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		return false; 
+	}
 
 	public static void main(String[] args) throws Exception {
 		
@@ -25,33 +55,18 @@ public class Client {
 		
 		//create socket which connects to server
 		Socket serverConnect = new Socket(serverIP, serverPort); 
-				
-
-
-		// create read stream and receive from server
-		BufferedReader inFromServer = new BufferedReader(new InputStreamReader(serverConnect.getInputStream()));
-		String sentenceFromServer;
-		sentenceFromServer = inFromServer.readLine();	
-
-		// print output
-		System.out.println(sentenceFromServer);
+			
+		while(!logStatus) {
+			if(checkLogin(serverConnect)) {
+				logStatus = true;
+				System.out.println("logged in"); 
+				break; 
+			}
+		}	
 		
-		// get input from keyboard
-		BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-		String sentence = inFromUser.readLine();
 		
-//		 write to server
-		DataOutputStream outToServer = new DataOutputStream(serverConnect.getOutputStream());
-		outToServer.writeBytes(sentence);
-		
-		sentenceFromServer = inFromServer.readLine(); 
-		System.out.println(sentenceFromServer); 
-		
-		sentence = inFromUser.readLine();
-		outToServer.writeBytes(sentence);
-
 		// close client socket
-		serverConnect.close();
+//		serverConnect.close();
 
 	} // end of main
 
