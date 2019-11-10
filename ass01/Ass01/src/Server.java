@@ -2,18 +2,28 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.Date;
 
 public class Server extends Thread {
+	
+	private Socket socket; 
 	
 	private static int serverPort; 
 	private static int blockDuration; 
 	private static int timeout; 
 	private static HashMap<String,String> users; 
 	private static ArrayList<String> loggedUsers = new ArrayList<>(); 
+	private static ReentrantLock synLock = new ReentrantLock(); 
+	private static HashMap<String,ArrayList<String>> offlineMsgs = new HashMap<>(); 
 	
+	public Server(Socket connectionSocket) {
+		socket = connectionSocket; 
+	}
+	//Loads "Credentials.txt" file in a Hash stored by server  
 	private static void loadUsers() {
 		users = new HashMap<>();
-		String currDir = System.getProperty("user.dir") + "\\"; 
+		String currDir = System.getProperty("user.dir") + "/"; 
 		String path = currDir + "credentials.txt"; 
 		File file = new File(path); 
 		
@@ -33,15 +43,21 @@ public class Server extends Thread {
 	}
 	
 	//Checks package contents to confirm whether user/pass is correct 
-	private static TCPackage userAuthenticate(ArrayList<String> data) {
-		String username = data.get(0); 
-		String password = data.get(1); 
+	private static TCPackage userAuthenticate(String data) {
+		String[] user = data.split(" "); 
+		String username = user[0]; 
+		String password = user[1]; 
+		System.out.println(loggedUsers);
 		if(users.containsKey(username) && users.get(username).equals(password)) {
-			loggedUsers.add(data.get(0)); 
+			loggedUsers.add(username); 
 			return new TCPackage("login/pass"); 
 		}else {
 			return new TCPackage("login/fail"); 
 		}
+		
+	}
+	
+	private static void receiveMsg() {
 		
 	}
 	
@@ -65,29 +81,20 @@ public class Server extends Thread {
 
 		while (true){
 
-		    // accept connection from connection queue
+		    // accept connection from connection queue and starts a new thread for each new client
 		    Socket connectionSocket = welcomeSocket.accept();
-            /*When a client knocks on this door, the program invokes the accept( ) method for welcomeSocket, which creates a new socket in the server, called connectionSocket, dedicated to this particular client. The client and server then complete the handshaking, creating a TCP connection between the client’s clientSocket and the server’s connectionSocket. With the TCP connection established, the client and server can now send bytes to each other over the connection. With TCP, all bytes sent from one side not are not only guaranteed to arrive at the other side but also guaranteed to arrive in order*/
-            
-//		    BufferedReader inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
-//		    String clientInput; 
-//		    ArrayList<String> tmp = new ArrayList<>(); 
-		    
-//		    for(clientInput = inFromClient.readLine(); !clientInput.equals("Connection: close"); clientInput = inFromClient.readLine()) {
-//		    	tmp.add(clientInput); 
-//		    }
-//		    
-//		    DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream()); 
-//		    if(users.containsKey(tmp.get(1)) && users.get(tmp.get(1)).equals(tmp.get(2))) {
-//		    	outToClient.writeBytes("true\n"); 
-//		    }else {
-//		    	outToClient.writeBytes("false\n");
-//		    }
-//		    
-//		    System.out.println("done"); 
-		    ObjectOutputStream outToClient = new ObjectOutputStream(connectionSocket.getOutputStream());
-		    ObjectInputStream inFromClient = new ObjectInputStream(connectionSocket.getInputStream());
+            new Thread(new Server(connectionSocket)).start(); 
+		} 
+	} 
+	
+	public void run() {
+		try {
+			ObjectOutputStream outToClient = new ObjectOutputStream(socket.getOutputStream());
+		   	ObjectInputStream inFromClient = new ObjectInputStream(socket.getInputStream());
+		   	
+		   	
 		    for(TCPackage data = (TCPackage) inFromClient.readObject(); data != null; data = (TCPackage) inFromClient.readObject()) {
+		    	synLock.lock();
 		    	String header = data.getHeader(); 
 		    	System.out.println(header);
 		    	switch(header){
@@ -95,19 +102,17 @@ public class Server extends Thread {
 		    		TCPackage confirm = userAuthenticate(data.getContent()); 
 	    			outToClient.writeObject(confirm);
 	    			break; 
+		    	case "user/message": 
+		    		receivemessage
 		    	default:
 		    		System.out.println("invalid header"); 
-		    		connectionSocket.close();  
+		    		socket.close();  
 		    	}
-		    	
-		    }
-		    
-		    
-//            connectionSocket.close();
-            /*In this program, after sending the capitalized sentence to the client, we close the connection socket. But since welcomeSocket remains open, another client can now knock on the door and send the server a sentence to modify.
-             */
-		} 
-
-	} 
+		    	synLock.unlock();
+		    }  
+		} catch (IOException | ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+	}
 
 } 

@@ -8,16 +8,19 @@ import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.
+
 
 public class Client extends Thread{
 	
+	private static String user; 
 	private static boolean logStatus = false;
 	private static Socket serverConnect; 
 	private static ReentrantLock syncLock = new ReentrantLock(); 
+	private static ObjectOutputStream output; 
+	private static ObjectInputStream input; 
 	
 	//Prompt user to enter username and password 
-	private static boolean checkLogin(ObjectOutputStream postObject, ObjectInputStream inObject)  {
+	private static void checkLogin()  {
 		try {
 			BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
 			System.out.println("Please enter username: ");
@@ -26,37 +29,42 @@ public class Client extends Thread{
 			System.out.println("Please enter password: "); 
 			String password = userInput.readLine();
 			
-			userInput.close();
-//			DataOutputStream postServer = new DataOutputStream(connectionSocket.getOutputStream());
-//			postServer.writeBytes("Header: user/authenticate" + "\n"); 
-//			postServer.writeBytes(username + "\n"); 
-//			postServer.writeBytes(password + "\n");	
-//			postServer.writeBytes("Connection: close\n"); 
+			String login = username + " " + password; 
+			TCPackage content = new TCPackage("user/authenticate", login); 
 			
-			ArrayList<String> body = new ArrayList<>(); 
-			body.add(username); 
-			body.add(password); 
-			TCPackage content = new TCPackage("user/authenticate", body); 
-			
-			postObject.writeObject(content);
+			output.writeObject(content);
 					
-			TCPackage confirm = (TCPackage) inObject.readObject(); 
-			if(confirm.getHeader().equals("login/pass")) return true; 
-			return false; 
-			
-//			BufferedReader getServer = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream())); 
-			//return the boolean value returned by the server 
-//			return Boolean.parseBoolean(getServer.readLine());
-			
-		} catch (IOException e) {
+			TCPackage confirm = (TCPackage) input.readObject(); 
+			if(confirm.getHeader().equals("login/pass")) {
+				user = username; 
+				logStatus = true; 
+				userInput.close();
+				return; 
+			}
+			System.out.println("try again"); 
+
+		} catch (IOException | ClassNotFoundException e) {
 			e.printStackTrace();
-			return false; 
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-			return false; 
 		}
 	}
-
+	
+	//Create packet to send to user 
+	private static void sendMessage(String[] message) {
+		if(message.length >= 3) {
+			System.out.println("Missing arguments for type \"message\": message <user> <message>");
+			return; 
+		}
+		
+		TCPackage forward = new TCPackage("user/message"); 
+		forward.setReceiver(message[1]);
+		forward.setUser(user);
+		String body = ""; 
+		for(int i = 2; i < message.length; i++) {
+			body.concat(message[i] + " "); 
+		}
+		forward.setContent(body);
+	}
+	
 	public static void main(String[] args) throws Exception {
 		
 		// Determine correct number of args
@@ -71,24 +79,45 @@ public class Client extends Thread{
 		
 		//Create socket which connects to server
 		serverConnect = new Socket(serverIP, serverPort); 
-		ObjectOutputStream postObject = new ObjectOutputStream(serverConnect.getOutputStream()); 
-		ObjectInputStream inObject = new ObjectInputStream(serverConnect.getInputStream()); 
+		output = new ObjectOutputStream(serverConnect.getOutputStream()); 
+		input = new ObjectInputStream(serverConnect.getInputStream()); 
 		
 		while(!logStatus) {
-			if(checkLogin(postObject, inObject)) {
-				logStatus = true;
-				System.out.println("logged in");  
-				break; 
-			}
-			System.out.println("try again"); 
+			checkLogin(); 
 		}
 		
+		System.out.println("You are logged in, you can now enter messages:"); 
+
 		Client client = new Client();
 		client.start();
 		
+		//Create buffer to read terminal input
+		BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
+		
 		//take input
-		while(true) {
-			
+		for(String line = userInput.readLine(); line != null; line = userInput.readLine()) {
+			syncLock.lock();	
+			String[] message = line.split(" ");
+			switch (message[0]) {
+			case "message":
+				sendMessage(message);
+				break;
+			case "broadcast":
+				break;
+			case "whoelse":
+				break; 
+			case "whoelsesince":
+				break; 
+			case "block":
+				break; 
+			case "unblock":
+				break; 
+			case "logout":
+				break; 
+			default:
+				System.out.println("invlaid message type, please try again");
+			}
+			syncLock.unlock();
 		}
 		
 		// close client socket
@@ -96,18 +125,23 @@ public class Client extends Thread{
 	} // end of main
 	
 	public void run() {
-		while(true) {
-			syncLock.lock();
-			//read data do something
-			ObjectInputStream serverResponse = new ObjectInputStream(serverConnect.getInputStream());
-			for(TCPackage data = (TCPackage) serverResponse.readObject(); data != null; data = (TCPackage) serverResponse.readObject()) {
-		    	String header = data.getHeader(); 
-		    	System.out.println(header);
-		    	
-			}
-			syncLock.unlock();
-		}
-		
-	}
+		//read data do something
+		try {
+			for(TCPackage data = (TCPackage) input.readObject(); data != null; data = (TCPackage) input.readObject()) {
+				String header = data.getHeader(); 
+				syncLock.lock();
 
+				switch(header) {
+				default:
+					System.out.println("invalid header"); 
+					break; 
+				}	
+				System.out.println("The header is " + data.getHeader());
+				System.out.println("The content is " + data.getContent()); 
+				syncLock.unlock();
+			}
+		} catch (ClassNotFoundException | IOException e) {
+			e.printStackTrace();
+		}
+	}
 } // end of class TCPClient
