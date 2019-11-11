@@ -1,4 +1,5 @@
 import java.io.Serializable;
+import java.net.Socket;
 import java.util.ArrayList;
 
 public class TCPackage implements Serializable {
@@ -7,6 +8,7 @@ public class TCPackage implements Serializable {
 	private String content; 
 	private String user; 
 	private String receiver; 
+//	private Socket socket;
 	
 	public TCPackage(String header) {
 		this.header = header;
@@ -50,5 +52,13 @@ public class TCPackage implements Serializable {
 	public void setReceiver(String receiver) {
 		this.receiver = receiver;
 	}
+
+//	public Socket getSocket() {
+//		return socket;
+//	}
+//
+//	public void setSocket(Socket socket) {
+//		this.socket = socket;
+//	}
 	
 }
