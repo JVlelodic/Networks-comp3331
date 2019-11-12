@@ -20,50 +20,55 @@ public class Client extends Thread{
 	private static ObjectInputStream fromServer; 
 	private static BufferedReader userInput; 
 	
-	//Prompt user to enter username and password 
-	private static void checkLogin()  {
+	//Prompt user to enter username
+	private static void checkUsername() {
+		System.out.println("Please enter username: ");
+		try {
+			user = userInput.readLine();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} 		
+	}
+	
+	//Prompt user to enter password 
+	private static void checkPassword()  {
 		try {			
 
 			System.out.println("Please enter password: "); 
 			String password = userInput.readLine();
-			
-//			String login = username + " " + password; 
-//			TCPackage content = new TCPackage("user/authenticate", login); 
+	 
 			TCPackage content = new TCPackage("user/authenticate"); 
 			content.setUser(user);
 			content.setContent(password);
-//			content.setSocket(serverConnect);
-			
 			toServer.writeObject(content);
-					
-//			TCPackage confirm = (TCPackage) input.readObject(); 
-//			if(confirm.getHeader().equals("login/pass")) {
-//				user = username; 
-//				logStatus = true; 
-//				userInput.close();
-//				return; 
-//			}
-
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 	
-	//Create packet to send to user 
+	//Filter message from terminal and then send to server
 	private static void sendMessage(String[] message) {
+		
 		if(message.length >= 3) {
 			System.out.println("Missing arguments for type \"message\": message <user> <message>");
 			return; 
 		}
 		
-		TCPackage forward = new TCPackage("user/message"); 
-		forward.setReceiver(message[1]);
-		forward.setUser(user);
+		TCPackage msg = new TCPackage("msg/user");
+		msg.setUser(user);
+		msg.setReceiver(message[1]);
+		
 		String body = ""; 
 		for(int i = 2; i < message.length; i++) {
 			body.concat(message[i] + " "); 
 		}
-		forward.setContent(body);
+		msg.setContent(body);
+		try {
+			toServer.writeObject(msg);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -84,22 +89,11 @@ public class Client extends Thread{
 		toServer = new ObjectOutputStream(serverConnect.getOutputStream()); 
 		fromServer = new ObjectInputStream(serverConnect.getInputStream()); 
 		
-		System.out.println("Please enter username: ");
 		userInput = new BufferedReader(new InputStreamReader(System.in));
-		user = userInput.readLine(); 
 		
-//		Client client = new Client();
-//		client.start();
-		
-//		while(!logStatus) {
-////			syncLock.lock();
-//			System.out.println(logStatus);
-//			checkLogin(user, userInput); 
-////			syncLock.unlock();
-//		}
-		
-		//Checks password for first time 
-		checkLogin(); 
+		//Ask user to enter username and password 
+		checkUsername(); 
+		checkPassword(); 
 		
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
 			String header = data.getHeader(); 
@@ -113,10 +107,20 @@ public class Client extends Thread{
 				break; 
 			case "login/fail/retry":
 				System.out.println("Invalid Password. Please try again");
-				checkLogin(); 
+				checkPassword(); 
 				break;
-			case "login/fail/blocked":
-				System.out.println("Your account is blocked due to multiple login failures. Please try again later"); 
+			case "login/fail/block":
+				System.out.println("Invalid Password. Your account has been blocked. Please try again later"); 
+				toServer.close();
+				fromServer.close();
+				serverConnect.close();
+				return; 
+			case "login/fail/user":
+				System.out.println("Username does not exist"); 
+				checkUsername(); 
+				checkPassword(); 
+			case "login/fail/lockout":
+				System.out.println("Your account is blocked due to multiple login failures");
 				toServer.close();
 				fromServer.close();
 				serverConnect.close();
@@ -131,24 +135,16 @@ public class Client extends Thread{
 //			System.out.println("The header is " + data.getHeader());
 //			System.out.println("The content is " + data.getContent()); 
 			syncLock.unlock();
-		
-		//Create buffer to read terminal input
-//		BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
-		
-		//take input
-		
-		}
-		
-		// close client socket
-		
-	} // end of main
+		}		
+	} 
 	
 	public void run() {
 		//read data do something
 		try {
 			for(String line = userInput.readLine(); line != null; line = userInput.readLine()) {
 				syncLock.lock();	
-				String[] message = line.split(" ");
+				String[] message = line.trim().split(" ");
+				System.out.println(message); 
 				switch (message[0]) {
 				case "message":
 					sendMessage(message);

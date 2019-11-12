@@ -28,8 +28,11 @@ public class Server extends Thread {
 	private static HashMap<String, Integer> loginAttempts = new HashMap<>();
 	//Username and time logged in
 	private static HashMap<String, LocalDateTime> logInTime = new HashMap<>(); 
+	//Username and time blocked
+	private static HashMap<String, LocalDateTime> logInBlocked = new HashMap<>(); 
 	//Username and time of last action
 	private static HashMap<String, Integer> lastAction = new HashMap<>(); 
+	
 	
 	public Server(Socket connectionSocket) {
 		socket = connectionSocket; 
@@ -73,55 +76,73 @@ public class Server extends Thread {
 		}
 	}
 	
+	
 	//Checks package contents to confirm whether user/pass is correct 
 	private void userAuthenticate(TCPackage data) {
 		try {
 			String username = data.getUser();
-			String password = data.getContent(); 
+			String password = data.getContent();
 			TCPackage packet; 
+		
+			//Account exists 
+			if(users.containsKey(username)) {
+				
+				// Clear lock out
+				if(logInBlocked.containsKey(username) 
+					&& logInBlocked.get(username).isBefore(LocalDateTime.now())) {
+					logInBlocked.remove(username);	
+				}
+				
+				//Account is still locked out
+				if(logInBlocked.containsKey(username)) {
+					packet = new TCPackage("login/fail/lockout"); 
+					
+				//Account username and password is correct 
+				}else if(users.get(username).equals(password)) {
+					broadcast(username, " logged in"); 
+					loggedUsers.put(username, outToClient);
+					logInTime.put(username, LocalDateTime.now());
+					packet = new TCPackage("login/pass"); 
+					
+				//Account password is wrong 
+				}else{
+					int count = loginAttempts.containsKey(username)? loginAttempts.get(username) : 0; 
+					count++; 
+					
+					// 3 login attempts were made 
+					if(count == 3) {
+						logInBlocked.put(username, LocalDateTime.now().plusSeconds(blockDuration));
+						count = 0; 
+						packet = new TCPackage("login/fail/block");
+					}else {
+						loginAttempts.put(username, count);
+						packet = new TCPackage("login/fail/retry"); 
+					}
+					loginAttempts.put(username, count); 
+				}
+			//Account does not exist
+			}else {
+				packet = new TCPackage("login/fail/user");				
+			}
 			
-			//If username does not exist
-			
-			// Correct username and password was entered
-			if(users.containsKey(username) && users.get(username).equals(password)) {
-				
-				broadcast(username, " logged in"); 
-				
-				//Add user to the hash maps 
-				loggedUsers.put(username,outToClient);
-				logInTime.put(username, LocalDateTime.now());
-				System.out.println(loggedUsers);
-				
-				packet = new TCPackage("login/pass");
-			}else if()))
-//			}else if(){			
-//				int count = loginAttempts.containsKey(username) ? loginAttempts.get(username) : 0;
-//				if(count == 3) {
-//					packet = new TCPackage("login/fail/blocked"); 
-//				}else {
-//					count++; 
-//					if(count == 3) {
-//					
-//					}
-//					loginAttempts.put(username, count);
-//					packet = new TCPackage("login/fail/retry"); 
-//				}	
-//			}
+			System.out.println(loggedUsers);
 			outToClient.writeObject(packet);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 	
-//	private void receiveMsg(TCPackage packet) {
-//		//User is offline
-//		if(!loggedUsers.containsKey(packet.getReceiver())) {
-//			OfflineMessage message = new OfflineMessage(packet.getUser(),packet.getContent()); 
-//			offlineMsgs.put(packet.getReceiver(), message); 
-//		}else {
-//			TCPackage payload = new TCPackage("server/message", );
-//		}
-//	}
+	private void sendMsg(TCPackage packet) {
+		String sendTo = packet.getReceiver();
+		//If user is logged in 
+		if(loggedUsers.containsKey(sendTo)) {
+			
+		
+		//user is offline 
+		}else {
+			
+		}
+	}
 	
 	public static void main(String[] args)throws Exception {
 		
@@ -163,8 +184,9 @@ public class Server extends Thread {
 		    	case "user/authenticate":
 		    		userAuthenticate(data); 
 	    			break; 
-//		    	case "user/message": 
-//		    		receiveMsg(data); 
+		    	case "msg/user": 
+		    		sendMsg(data); 
+		    		break; 
 		    	default:
 		    		System.out.println("invalid header"); 
 		    		socket.close();  
