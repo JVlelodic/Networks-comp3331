@@ -55,7 +55,7 @@ public class Client extends Thread{
 			return; 
 		}
 		
-		TCPackage msg = new TCPackage("msg/user");
+		TCPackage msg = new TCPackage("user/msg");
 		msg.setUser(user);
 		msg.setReceiver(message[1]);
 		
@@ -119,14 +119,22 @@ public class Client extends Thread{
 				System.out.println("Username does not exist"); 
 				checkUsername(); 
 				checkPassword(); 
+				break; 
 			case "login/fail/lockout":
 				System.out.println("Your account is blocked due to multiple login failures");
 				toServer.close();
 				fromServer.close();
 				serverConnect.close();
 				return; 
-			case "broadcast/msg":
+			case "msg/broadcast":
 				System.out.println(data.getUser() + data.getContent());
+				break; 
+			case "msg/user":
+				//TODO
+				System.out.println();
+				break; 
+			case "msg/user/invalid":
+				System.out.println("Error. Invalid user"); 
 				break; 
 			default:
 				System.out.println("invalid header"); 

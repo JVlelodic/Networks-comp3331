@@ -23,7 +23,7 @@ public class Server extends Thread {
 	//Usernames and their respective sockets 
 	private static HashMap<String, ObjectOutputStream> loggedUsers = new HashMap<>();
 	// Offline username, User that send the message, message 
-	private static HashMap<String, OfflineMessage> offlineMsgs = new HashMap<>(); 
+	private static HashMap<String, ArrayList<OfflineMessage>> offlineMsgs = new HashMap<>(); 
 	// Username and number of login attempts
 	private static HashMap<String, Integer> loginAttempts = new HashMap<>();
 	//Username and time logged in
@@ -62,9 +62,9 @@ public class Server extends Thread {
 	
 	//Broadcast to all logged in users of log in/out updates
 	private void broadcast(String username, String content) {
-		TCPackage broadcast = new TCPackage("broadcast/msg"); 
+		TCPackage broadcast = new TCPackage("msg/broadcast"); 
 		broadcast.setContent(content);
-		broadcast.setUser(username);
+		broadcast.setUser(username); 
 		
 		for(String currUser : loggedUsers.keySet()) {
 			ObjectOutputStream send = loggedUsers.get(currUser);
@@ -132,15 +132,30 @@ public class Server extends Thread {
 		}
 	}
 	
+	//Transferring messages between users 
 	private void sendMsg(TCPackage packet) {
-		String sendTo = packet.getReceiver();
-		//If user is logged in 
-		if(loggedUsers.containsKey(sendTo)) {
-			
-		
-		//user is offline 
-		}else {
-			
+		try {
+			String fromUser = packet.getUser(); 
+			String sendTo = packet.getReceiver();
+			TCPackage msg; 
+			//If user exists 
+			if(users.containsKey(sendTo)) {
+				// user is logged in 
+				if(loggedUsers.containsKey(sendTo)) {
+					msg = new TCPackage("msg/user"); 
+					msg.setContent(packet.getUser() + ": " + packet.getContent());
+					loggedUsers.get(sendTo).writeObject(msg); 
+				// user is offline 
+				}else {
+					OfflineMessage om = new OfflineMessage(fromUser,packet.getContent());
+					if(!offlineMsgs.containsKey(sendTo)) offlineMsgs.put(sendTo, new ArrayList<OfflineMessage>()); 
+					offlineMsgs.get(sendTo).add(om); 				}
+			}else {	
+				msg = new TCPackage("msg/user/invalid");
+				loggedUsers.get(fromUser).writeObject(msg); 
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 	
@@ -184,7 +199,7 @@ public class Server extends Thread {
 		    	case "user/authenticate":
 		    		userAuthenticate(data); 
 	    			break; 
-		    	case "msg/user": 
+		    	case "user/msg": 
 		    		sendMsg(data); 
 		    		break; 
 		    	default:
