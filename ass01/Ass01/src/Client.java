@@ -112,7 +112,7 @@ public class Client extends Thread{
 				new Client().start();
 				break; 
 			case "login/fail/retry":
-				System.out.println("Wrong password");
+				System.out.println("Invalid Password. Please try again");
 				checkLogin(); 
 				break;
 			case "login/fail/blocked":
@@ -121,12 +121,15 @@ public class Client extends Thread{
 				fromServer.close();
 				serverConnect.close();
 				return; 
+			case "broadcast/msg":
+				System.out.println(data.getUser() + data.getContent());
+				break; 
 			default:
 				System.out.println("invalid header"); 
 				break; 
 			}	
-			System.out.println("The header is " + data.getHeader());
-			System.out.println("The content is " + data.getContent()); 
+//			System.out.println("The header is " + data.getHeader());
+//			System.out.println("The content is " + data.getContent()); 
 			syncLock.unlock();
 		
 		//Create buffer to read terminal input
@@ -163,7 +166,7 @@ public class Client extends Thread{
 				case "logout":
 					break; 
 				default:
-					System.out.println("invlaid message type, please try again");
+					System.out.println("Error. Invalid command");
 				}
 				syncLock.unlock();
 			}
