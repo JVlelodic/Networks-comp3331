@@ -188,9 +188,12 @@ public class Server extends Thread {
 	//Send all offline messages to user 
 	private void sendOfflineMessages() {
 		if(offlineMsgs.containsKey(clientUsername)) {
-			for(TCPackage packet : offlineMsgs.get(clientUsername)) {
-				String fromUser = om.getUser();
-				TCPackage packet = new TCPackage() 
+			for(TCPackage packet : offlineMsgs.get(clientUsername)) {				
+				try {
+					outToClient.writeObject(packet);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 		}
 		return; 
@@ -224,12 +227,12 @@ public class Server extends Thread {
 						packet = new TCPackage("login/fail/user"); 
 						packet.setContent("Account is already logged in. Please try another account");
 					}else {
-//						clientUsername = data.getUser(); 
 						loggedUsers.put(clientUsername, outToClient);
 						logInTime.put(clientUsername, LocalDateTime.now());
 						broadcast(clientUsername + " logged in", true); 
 						packet = new TCPackage("login/pass"); 
 						packet.setContent("You are logged in, you can now enter messages:"); 
+						sendOfflineMessages();
 					}
 				//Account password is wrong 
 				}else{
@@ -276,16 +279,27 @@ public class Server extends Thread {
 					msg.setContent("Your message could not be delivered as the recipient has blocked you");
 					//send back to client
 					outToClient.writeObject(msg);
-				// user is logged in 
-				}else if(loggedUsers.containsKey(sendTo)) {
-					msg.setContent(clientUsername + ": " + packet.getContent());
-					loggedUsers.get(sendTo).writeObject(msg); 
-				// user is offline 
 				}else {
-					packet.setUser(clientUsername);
-					if(!offlineMsgs.containsKey(sendTo)) offlineMsgs.put(sendTo, new ArrayList<TCPackage>()); 
-					offlineMsgs.get(sendTo).add(packet); 			
+					msg.setContent(clientUsername + ": " + packet.getContent());
+					//user is logged in 
+					if(loggedUsers.containsKey(sendTo)) {
+						loggedUsers.get(sendTo).writeObject(msg);
+					//user is offline
+					}else {
+						if(!offlineMsgs.containsKey(sendTo)) offlineMsgs.put(sendTo, new ArrayList<TCPackage>()); 
+						offlineMsgs.get(sendTo).add(msg); 		
+					}			
 				}
+				// user is logged in 
+//				}else if(loggedUsers.containsKey(sendTo)) {
+//					msg.setContent(clientUsername + ": " + packet.getContent());
+//					loggedUsers.get(sendTo).writeObject(msg); 
+//				// user is offline 
+//				}else {
+//					msg.setContent(clientUsername + ": " + packet.getContent());
+//					if(!offlineMsgs.containsKey(sendTo)) offlineMsgs.put(sendTo, new ArrayList<TCPackage>()); 
+//					offlineMsgs.get(sendTo).add(packet); 			
+//				}
 			//user doesn't exist
 			}else {	
 				loggedUsers.get(clientUsername).writeObject(msg); 
