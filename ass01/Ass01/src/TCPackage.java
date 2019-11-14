@@ -7,20 +7,19 @@ public class TCPackage implements Serializable {
 	private String header; 
 	private String content; 
 	private String user; 
-	private String receiver; 
-//	private Socket socket;
+	
+	public TCPackage() {}
 	
 	public TCPackage(String header) {
 		this.header = header;
-		this.content = null; 
+		this.content = ""; 
 	}
 	
-	public TCPackage(String header, String content){
+	public TCPackage(String header, String content) {
 		this.header = header; 
 		this.content = content; 
-//		this.content.add("Content: end\n"); 
 	}
-
+	
 	public String getHeader() {
 		return header;
 	}
@@ -41,16 +40,8 @@ public class TCPackage implements Serializable {
 		return user;
 	}
 
-	public void setUser(String user) {
-		this.user = user;
-	}
-
-	public String getReceiver() {
-		return receiver;
-	}
-
-	public void setReceiver(String receiver) {
-		this.receiver = receiver;
+	public void setUser(String receiver) {
+		this.user = receiver;
 	}
 
 //	public Socket getSocket() {

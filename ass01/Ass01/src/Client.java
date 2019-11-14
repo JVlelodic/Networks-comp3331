@@ -13,7 +13,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Client extends Thread{
 	
 	private static String user; 
-//	private static boolean logStatus = false;
 	private static Socket serverConnect; 
 	private static ReentrantLock syncLock = new ReentrantLock(); 
 	private static ObjectOutputStream toServer; 
@@ -46,29 +45,18 @@ public class Client extends Thread{
 			e.printStackTrace();
 		}
 	}
-	
+		
 	//Filter message from terminal and then send to server
-	private static void sendMessage(String[] message) {
-		
-		if(message.length >= 3) {
-			System.out.println("Missing arguments for type \"message\": message <user> <message>");
-			return; 
-		}
-		
-		TCPackage msg = new TCPackage("user/msg");
-		msg.setUser(user);
-		msg.setReceiver(message[1]);
-		
+	private static TCPackage sendMessage(String[] message, int index) {
+
+		TCPackage msg = new TCPackage(); 
+
 		String body = ""; 
-		for(int i = 2; i < message.length; i++) {
-			body.concat(message[i] + " "); 
+		for(int i = index; i < message.length; i++) {
+			body += (message[i] + " "); 
 		}
 		msg.setContent(body);
-		try {
-			toServer.writeObject(msg);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		return msg; 
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -96,82 +84,108 @@ public class Client extends Thread{
 		checkPassword(); 
 		
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
+			System.out.println(data.getContent()); 
 			String header = data.getHeader(); 
 			syncLock.lock();
 			switch(header) {
 			//Login accepted and opens new thread to accept userInput
 			case "login/pass":
-//				logStatus = true;
-				System.out.println("You are logged in, you can now enter messages:"); 
 				new Client().start();
 				break; 
 			case "login/fail/retry":
-				System.out.println("Invalid Password. Please try again");
 				checkPassword(); 
 				break;
-			case "login/fail/block":
-				System.out.println("Invalid Password. Your account has been blocked. Please try again later"); 
-				toServer.close();
-				fromServer.close();
-				serverConnect.close();
-				return; 
 			case "login/fail/user":
-				System.out.println("Username does not exist"); 
 				checkUsername(); 
 				checkPassword(); 
 				break; 
-			case "login/fail/lockout":
-				System.out.println("Your account is blocked due to multiple login failures");
+			case "logout/user":
 				toServer.close();
-				fromServer.close();
+				fromServer.close(); 
 				serverConnect.close();
 				return; 
-			case "msg/broadcast":
-				System.out.println(data.getUser() + data.getContent());
-				break; 
 			case "msg/user":
-				//TODO
-				System.out.println();
-				break; 
-			case "msg/user/invalid":
-				System.out.println("Error. Invalid user"); 
-				break; 
+				continue; 
 			default:
-				System.out.println("invalid header"); 
+				System.out.println("Invalid header"); 
 				break; 
 			}	
-//			System.out.println("The header is " + data.getHeader());
-//			System.out.println("The content is " + data.getContent()); 
 			syncLock.unlock();
 		}		
 	} 
 	
-	public void run() {
+	public void run() { 
 		//read data do something
 		try {
 			for(String line = userInput.readLine(); line != null; line = userInput.readLine()) {
 				syncLock.lock();	
+//				String correct = line.trim(); 
 				String[] message = line.trim().split(" ");
-				System.out.println(message); 
+				
+				
+				TCPackage packet = null; 
+				
 				switch (message[0]) {
 				case "message":
-					sendMessage(message);
+					if(message.length < 3) {
+						System.out.println("Missing arguments for type \"message\": message <user> <message>");
+						continue; 
+					}
+					packet = sendMessage(message,2);
+					packet.setUser(message[1]);
+					packet.setHeader("user/msg"); 
 					break;
 				case "broadcast":
+					if(message.length < 2) {
+						System.out.println("Missing arguments for type \"broadcast\": broadcast <message>"); 
+						continue; 
+					}
+					packet = sendMessage(message, 1);
+					packet.setHeader("user/broadcast");
 					break;
 				case "whoelse":
+					if(message.length !=  1) {
+						System.out.println("No arguments"); 
+						continue; 
+					}
+					packet = new TCPackage("user/whoelse"); 
 					break; 
 				case "whoelsesince":
+					if(message.length != 2) {
+						System.out.println("Missing arguments for type \"whoelsesince\": whoelsesince <time>");
+						continue; 
+					}
+					packet = new TCPackage("user/whoelse/since"); 
+					packet.setContent(message[1]); 
 					break; 
 				case "block":
+					if(message.length != 2) {
+						System.out.println("Missing arguments for type\"block\": block <user>"); 
+						continue; 
+					}
+					packet = new TCPackage("user/block");
+					packet.setUser(message[1]);
 					break; 
 				case "unblock":
+					if(message.length != 2) {
+						System.out.println("Missing arguments for type \"unblock\": unblock <user>"); 
+						continue; 
+					}
+					packet = new TCPackage("user/unblock"); 
+					packet.setUser(message[1]);
 					break; 
 				case "logout":
+					if(message.length != 1) {
+						System.out.println("No arguments needed for type \"logout\": logout"); 
+						continue; 
+					}
+					packet = new TCPackage("user/logout"); 
 					break; 
 				default:
 					System.out.println("Error. Invalid command");
+					continue; 
 				}
+				toServer.writeObject(packet);
 				syncLock.unlock();
 			}
 		} catch (IOException e) {
