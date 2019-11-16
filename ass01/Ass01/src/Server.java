@@ -75,18 +75,32 @@ public class Server extends Thread {
 			packet.setContent("Error. Cannot block Self"); 
 		}else {
 			if(!blockedUsers.containsKey(blocked)) blockedUsers.put(blocked, new ArrayList<String>()); 
-			blockedUsers.get(blocked).add(clientUsername); 
+			//To check if user has already been blocked by current user 
+			if(!blockedUsers.get(blocked).contains(clientUsername)) {
+				blockedUsers.get(blocked).add(clientUsername); 
+			}
 			packet.setContent(blocked + " is blocked");
+		}
+		try {
+			outToClient.writeObject(packet);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
 	private void whoelse() {
-		String allUsers = ""; 
-		for(String username : loggedUsers.keySet()) {	
-			if(!username.equals(clientUsername)) allUsers.concat(username + "\n"); 
-		}
 		TCPackage packet = new TCPackage("msg/user"); 
-		packet.setContent(allUsers);
+		//No other users online
+		if(loggedUsers.containsKey(clientUsername) && loggedUsers.size() == 1) {
+			packet.setContent("No other users are online");
+		}else {
+			String allUsers = ""; 
+			for(String username : loggedUsers.keySet()) {	
+				//Spaces added to string for formatting
+				if(!username.equals(clientUsername)) allUsers += (username + "\n"); 
+			}
+			packet.setContent(allUsers); 
+		}
 		try {
 			outToClient.writeObject(packet);
 		} catch (IOException e) {
@@ -100,7 +114,9 @@ public class Server extends Thread {
 		String allUsers = ""; 
 
 		for(String username : logInTime.keySet()) {	
-			if(!username.equals(clientUsername) && logInTime.get(username).isBefore(withinTime)) allUsers.concat(username + "\n"); 
+			if(!username.equals(clientUsername) && (logInTime.get(username).isAfter(withinTime) || loggedUsers.containsKey(username))) {
+				allUsers += (username + "\n"); 
+			}
 		}
 		TCPackage packet = new TCPackage("msg/user"); 
 		packet.setContent(allUsers);
@@ -158,7 +174,7 @@ public class Server extends Thread {
 						if(!blockedUsers.containsKey(currUser) || !blockedUsers.get(currUser).contains(clientUsername)) send.writeObject(broadcast); 
 					}else {
 						//user has been blocked by current user in loop and will be informed that message has not been delivered
-						if(blockedUsers.get(clientUsername).contains(currUser)) {
+						if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(currUser)) {
 							delivered = false; 
 						}else {
 							send.writeObject(broadcast);
@@ -173,10 +189,11 @@ public class Server extends Thread {
 		}
 	}
 	
-	private void logout() {
+	private void logout(String message) {
 		loggedUsers.remove(clientUsername); 
 		broadcast(clientUsername + " logged out", true); 
 		TCPackage logout = new TCPackage("logout/user"); 
+		logout.setContent(message);
 		try {
 			outToClient.writeObject(logout);
 		} catch (IOException e) {
@@ -195,6 +212,7 @@ public class Server extends Thread {
 					e.printStackTrace();
 				}
 			}
+			offlineMsgs.get(clientUsername).clear();
 		}
 		return; 
 	}
@@ -272,10 +290,14 @@ public class Server extends Thread {
 		try {
 			String sendTo = packet.getUser();
 			TCPackage msg = new TCPackage("msg/user");
+			//If sending to yourself
+			if(clientUsername.equals(sendTo)) {
+				msg.setContent("Cannot send message to yourself");
+				outToClient.writeObject(msg);
 			//If user exists 
-			if(users.containsKey(sendTo)) {
+			}else if(users.containsKey(sendTo)) {
 				//WHAT IF THEY ARE BLOCKED AND LOGGED OFF
-				if(blockedUsers.get(clientUsername).contains(sendTo)) {
+				if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(sendTo)) {
 					msg.setContent("Your message could not be delivered as the recipient has blocked you");
 					//send back to client
 					outToClient.writeObject(msg);
@@ -290,16 +312,6 @@ public class Server extends Thread {
 						offlineMsgs.get(sendTo).add(msg); 		
 					}			
 				}
-				// user is logged in 
-//				}else if(loggedUsers.containsKey(sendTo)) {
-//					msg.setContent(clientUsername + ": " + packet.getContent());
-//					loggedUsers.get(sendTo).writeObject(msg); 
-//				// user is offline 
-//				}else {
-//					msg.setContent(clientUsername + ": " + packet.getContent());
-//					if(!offlineMsgs.containsKey(sendTo)) offlineMsgs.put(sendTo, new ArrayList<TCPackage>()); 
-//					offlineMsgs.get(sendTo).add(packet); 			
-//				}
 			//user doesn't exist
 			}else {	
 				loggedUsers.get(clientUsername).writeObject(msg); 
@@ -364,6 +376,7 @@ public class Server extends Thread {
 		    		break; 
 		    	case "user/whoelse/since": 
 		    		whoelseSince(data.getContent()); 
+		    		break; 
 		    	case "user/block":
 		    		blockUser(data); 
 		    		break; 
@@ -371,7 +384,7 @@ public class Server extends Thread {
 		    		unblockUser(data); 
 		    		break; 
 		    	case "user/logout":
-		    		logout();
+		    		logout("You have logged out");
 		    		break; 
 		    	default:
 		    		System.out.println("invalid header"); 
@@ -379,23 +392,16 @@ public class Server extends Thread {
 		    	}
 		    	synLock.unlock();
 		    }  
+		//Timeout occurred, logout client  
 		} catch (SocketTimeoutException e) {
-			//Send message to client that timeout has occured 
-			
-			//Have to remove client from logout 
-			logout(); 
-			try {
-				socket.close();
-			} catch (IOException e1) {
-				e1.printStackTrace();
-			}
-			return; 
+			System.out.println(clientUsername + " has timed out");
+			logout("You have timed out");
 		} catch (SocketException | EOFException  e) {
-			System.out.println("Client has closed the connection");
-			return; 
+			System.out.println(clientUsername + " has closed the connection"); 
 		} catch (IOException | ClassNotFoundException e) {
 			e.printStackTrace();
 		}
+		return; 
 	}
 
 } 

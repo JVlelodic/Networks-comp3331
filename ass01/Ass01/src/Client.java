@@ -18,6 +18,8 @@ public class Client extends Thread{
 	private static ObjectOutputStream toServer; 
 	private static ObjectInputStream fromServer; 
 	private static BufferedReader userInput; 
+	private static Thread readCommand = null; 
+//	private static Thread 
 	
 	//Prompt user to enter username
 	private static void checkUsername() {
@@ -82,15 +84,20 @@ public class Client extends Thread{
 		//Ask user to enter username and password 
 		checkUsername(); 
 		checkPassword(); 
+
 		
+//		while(true) {
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
-			System.out.println(data.getContent()); 
+//			TCPackage data = (TCPackage) fromServer.readObject(); 
+			System.out.println(">> " + data.getContent()); 
 			String header = data.getHeader(); 
-			syncLock.lock();
+//			syncLock.lock();
 			switch(header) {
 			//Login accepted and opens new thread to accept userInput
 			case "login/pass":
-				new Client().start();
+//				syncLock.unlock();
+				readCommand = new Client();
+				readCommand.start();
 				break; 
 			case "login/fail/retry":
 				checkPassword(); 
@@ -100,6 +107,8 @@ public class Client extends Thread{
 				checkPassword(); 
 				break; 
 			case "logout/user":
+//				if(readCommand != null) readCommand.interrupt();
+				if(readCommand != null) readCommand.join();
 				toServer.close();
 				fromServer.close(); 
 				serverConnect.close();
@@ -110,19 +119,19 @@ public class Client extends Thread{
 				System.out.println("Invalid header"); 
 				break; 
 			}	
-			syncLock.unlock();
-		}		
+//			syncLock.unlock();
+		}	
 	} 
 	
 	public void run() { 
-		//read data do something
+//		//read data do something
+//		&& !Thread.currentThread().isInterrupted()
 		try {
 			for(String line = userInput.readLine(); line != null; line = userInput.readLine()) {
-				syncLock.lock();	
-//				String correct = line.trim(); 
+//				System.out.println(syncLock); 
+//				syncLock.lock();	
 				String[] message = line.trim().split(" ");
-				
-				
+			
 				TCPackage packet = null; 
 				
 				switch (message[0]) {
@@ -186,10 +195,14 @@ public class Client extends Thread{
 					continue; 
 				}
 				toServer.writeObject(packet);
-				syncLock.unlock();
+//				syncLock.unlock();
+//				System.out.println(syncLock);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		return; 
 	}
-} // end of class TCPClient
+}
+
+ // end of class TCPClient
