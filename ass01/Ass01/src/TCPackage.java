@@ -1,14 +1,18 @@
 import java.io.Serializable;
-import java.net.Socket;
-import java.util.ArrayList;
+import java.net.InetAddress;
 
 public class TCPackage implements Serializable {
 
 	private String header; 
 	private String content; 
 	private String user; 
+	private InetAddress ipAddress; 
+	private int port; 
 	
-	public TCPackage() {}
+	public TCPackage() {
+		this.header = "msg/user";
+		this.content = ""; 
+	}
 	
 	public TCPackage(String header) {
 		this.header = header;
@@ -44,12 +48,21 @@ public class TCPackage implements Serializable {
 		this.user = receiver;
 	}
 
-//	public Socket getSocket() {
-//		return socket;
-//	}
-//
-//	public void setSocket(Socket socket) {
-//		this.socket = socket;
-//	}
+	public InetAddress getIpAddress() {
+		return ipAddress;
+	}
+
+	public void setIpAddress(InetAddress ipAddress) {
+		this.ipAddress = ipAddress;
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public void setPort(int port) {
+		this.port = port;
+	}
+	
 	
 }

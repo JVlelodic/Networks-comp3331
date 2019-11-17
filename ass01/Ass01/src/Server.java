@@ -21,7 +21,7 @@ public class Server extends Thread {
 
 	//Usernames and passwords from Credentials.txt
 	private static HashMap<String,String> users; 
-	//Usernames and their respective sockets 
+	//Usernames and their respective output sockets 
 	private static HashMap<String, ObjectOutputStream> loggedUsers = new HashMap<>();
 	// Offline username, User that sent the message, message 
 	private static HashMap<String, ArrayList<TCPackage>> offlineMsgs = new HashMap<>(); 
@@ -33,6 +33,8 @@ public class Server extends Thread {
 	private static HashMap<String, LocalDateTime> logInBlocked = new HashMap<>(); 
 	//Username and list of users who have blocked them 
 	private static HashMap<String,ArrayList<String>> blockedUsers = new HashMap<>();  
+	//Username and their respective connection sockets
+	private static HashMap<String, Socket> userSockets = new HashMap<>();
 	
 	
 	public Server(Socket connectionSocket) {
@@ -57,6 +59,31 @@ public class Server extends Thread {
 		try { 
 			outToClient.writeObject(packet);
 		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private void startPrivate(TCPackage data) {
+		String user = data.getUser(); 
+		TCPackage packet = new TCPackage("startprivate/user"); 
+		if(!users.containsKey(user)) {
+			packet.setContent("Error. " + user + " does not exit");
+		}else if(user.equals(clientUsername)) {
+			packet.setContent("Error. Cannot start private messaging with self");
+		}else if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(user)) {
+			packet.setContent("Error. " + user + " has blocked you");
+		}else if(!userSockets.containsKey(user)) {
+			packet.setContent("Error. " + user + " is not online");
+		}else {
+			packet.setHeader("private/start");
+			Socket socket = userSockets.get(user);
+			packet.setPort(socket.getPort());
+			packet.setIpAddress(socket.getInetAddress()); 
+			packet.setContent("Starting private connection with " + user);
+		}
+		try {
+			outToClient.writeObject(packet);
+		} catch(IOException e) {
 			e.printStackTrace();
 		}
 	}
@@ -190,6 +217,7 @@ public class Server extends Thread {
 	}
 	
 	private void logout(String message) {
+		userSockets.remove(clientUsername); 
 		loggedUsers.remove(clientUsername); 
 		broadcast(clientUsername + " logged out", true); 
 		TCPackage logout = new TCPackage("logout/user"); 
@@ -247,6 +275,7 @@ public class Server extends Thread {
 					}else {
 						loggedUsers.put(clientUsername, outToClient);
 						logInTime.put(clientUsername, LocalDateTime.now());
+						userSockets.put(clientUsername, socket);
 						broadcast(clientUsername + " logged in", true); 
 						packet = new TCPackage("login/pass"); 
 						packet.setContent("You are logged in, you can now enter messages:"); 
@@ -313,8 +342,8 @@ public class Server extends Thread {
 					}			
 				}
 			//user doesn't exist
-			}else {	
-				loggedUsers.get(clientUsername).writeObject(msg); 
+			}else {
+				outToClient.writeObject(msg); 
 				msg.setContent("Error. Invalid user"); 
 				outToClient.writeObject(msg);  
 			}
@@ -385,6 +414,9 @@ public class Server extends Thread {
 		    		break; 
 		    	case "user/logout":
 		    		logout("You have logged out");
+		    		break; 
+		    	case "user/startprivate":
+		    		startPrivate(data);
 		    		break; 
 		    	default:
 		    		System.out.println("invalid header"); 

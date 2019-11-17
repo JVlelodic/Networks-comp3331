@@ -19,7 +19,8 @@ public class Client extends Thread{
 	private static ObjectInputStream fromServer; 
 	private static BufferedReader userInput; 
 	private static Thread readCommand = null; 
-//	private static Thread 
+	
+//	private static HashMap
 	
 	//Prompt user to enter username
 	private static void checkUsername() {
@@ -84,18 +85,20 @@ public class Client extends Thread{
 		//Ask user to enter username and password 
 		checkUsername(); 
 		checkPassword(); 
-
 		
+		ServerSocket welcomeSocket = new ServerSocket(serverConnect.getLocalPort()); 
 //		while(true) {
+//			
+//		}
+		
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
 //			TCPackage data = (TCPackage) fromServer.readObject(); 
+			syncLock.lock();
 			System.out.println(">> " + data.getContent()); 
 			String header = data.getHeader(); 
-//			syncLock.lock();
 			switch(header) {
 			//Login accepted and opens new thread to accept userInput
 			case "login/pass":
-//				syncLock.unlock();
 				readCommand = new Client();
 				readCommand.start();
 				break; 
@@ -107,29 +110,28 @@ public class Client extends Thread{
 				checkPassword(); 
 				break; 
 			case "logout/user":
-//				if(readCommand != null) readCommand.interrupt();
-				if(readCommand != null) readCommand.join();
-				toServer.close();
-				fromServer.close(); 
+				if(readCommand != null) readCommand.interrupt();
 				serverConnect.close();
 				return; 
 			case "msg/user":
-				continue; 
+				break; 
+			case "startprivate/user":
+				System.out.println(data.getPort());
+				System.out.println(data.getIpAddress().toString());
+				break; 
 			default:
 				System.out.println("Invalid header"); 
 				break; 
 			}	
-//			syncLock.unlock();
+			syncLock.unlock();
 		}	
 	} 
 	
 	public void run() { 
 //		//read data do something
-//		&& !Thread.currentThread().isInterrupted()
+
 		try {
-			for(String line = userInput.readLine(); line != null; line = userInput.readLine()) {
-//				System.out.println(syncLock); 
-//				syncLock.lock();	
+			for(String line = userInput.readLine(); line != null && !Thread.currentThread().isInterrupted(); line = userInput.readLine()) {
 				String[] message = line.trim().split(" ");
 			
 				TCPackage packet = null; 
@@ -190,13 +192,18 @@ public class Client extends Thread{
 					}
 					packet = new TCPackage("user/logout"); 
 					break; 
+				case "startprivate": 
+					if(message.length != 2) {
+						System.out.println("Missing arguments for type \"startprivate\": startprivate <user>"); 
+						continue; 
+					}
+					packet = new TCPackage("user/startprivate"); 
+					break; 
 				default:
 					System.out.println("Error. Invalid command");
 					continue; 
 				}
 				toServer.writeObject(packet);
-//				syncLock.unlock();
-//				System.out.println(syncLock);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
