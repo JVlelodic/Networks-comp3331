@@ -27,7 +27,15 @@ public class Client extends Thread{
 	//Username and the opened listener thread  
 	private static HashMap<String,Thread> openThreads = new HashMap<>(); 
 	
-
+	//Error checking to determine if String is an integer 
+	public static boolean isInteger(String s) {
+	    try { 
+	        Integer.parseInt(s); 
+	    } catch(Exception e) { 
+	        return false; 
+	    }
+	    return true;
+	}
 	
 	//Prompt user to enter username
 	private static void checkUsername() {
@@ -176,10 +184,6 @@ public class Client extends Thread{
 		//Ask user to enter username and password 
 		checkUsername(); 
 		checkPassword(); 
-
-		
-		
-//		System.out.println(p2pSocket.getLocalPort());
 		
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
 			syncLock.lock();
@@ -190,8 +194,6 @@ public class Client extends Thread{
 				Thread reader = new Client(); 
 				reader.start(); 
 				openThreads.put(user, reader);
-//				readCommand = new Client();
-//				readCommand.start();
 				break; 
 			case "login/fail/retry":
 				checkPassword(); 
@@ -201,7 +203,6 @@ public class Client extends Thread{
 				checkPassword(); 
 				break; 
 			case "logout/user":
-//				if(readCommand != null) readCommand.interrupt();
 				logOut(); 
 				return; 
 			case "private/start":
@@ -259,7 +260,7 @@ public class Client extends Thread{
 					packet = new TCPackage("user/whoelse"); 
 					break; 
 				case "whoelsesince":
-					if(message.length != 2) {
+					if(message.length != 2 && isInteger(message[1])) {
 						System.out.println("Missing arguments for type \"whoelsesince\": whoelsesince <time>");
 						continue; 
 					}
