@@ -109,7 +109,7 @@ public class Client extends Thread{
 			}
 
 			//Closes STDIN thread
-			openThreads.get(user).interrupt();
+			if(openThreads.containsKey(user)) openThreads.get(user).interrupt();
 			serverConnect.close();
 		} catch (IOException e) {
 			e.printStackTrace();

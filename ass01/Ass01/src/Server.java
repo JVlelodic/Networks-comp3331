@@ -21,18 +21,28 @@ public class Server extends Thread {
 
 	//Usernames and passwords from Credentials.txt
 	private static HashMap<String,String> users; 
+	
 	//Usernames and their respective output sockets 
 	private static HashMap<String, ObjectOutputStream> loggedUsers = new HashMap<>();
+	
 	// Offline username, User that sent the message, message 
 	private static HashMap<String, ArrayList<TCPackage>> offlineMsgs = new HashMap<>(); 
+	
 	// Username and number of login attempts
 	private static HashMap<String, Integer> loginAttempts = new HashMap<>();
+	
 	//Username and time logged in
 	private static HashMap<String, LocalDateTime> logInTime = new HashMap<>(); 
+	
+	//Username and time logged out
+	private static HashMap<String, LocalDateTime> logOutTime = new HashMap<>(); 
+	
 	//Username and time blocked
 	private static HashMap<String, LocalDateTime> logInBlocked = new HashMap<>(); 
+	
 	//Username and list of users who have blocked them 
 	private static HashMap<String, ArrayList<String>> blockedUsers = new HashMap<>();  
+	
 	//Username and respective serversocket ip address and port num in string format -> "<ipAddress>:<port>"
 	private static HashMap<String, String> listenSockets = new HashMap<>();
 	
@@ -87,8 +97,6 @@ public class Server extends Thread {
 					packet.setUser(user);
 					String ipPort = listenSockets.get(user);
 					String[] values = ipPort.split(":");
-					System.out.println(values[0]);
-					System.out.println(values[1]);
 					packet.setIpAddress(values[0]);
 					packet.setPort(Integer.parseInt(values[1]));
 	
@@ -158,8 +166,9 @@ public class Server extends Thread {
 		LocalDateTime withinTime = LocalDateTime.now().minusSeconds(time); 
 		String allUsers = ""; 
 
-		for(String username : logInTime.keySet()) {	
-			if(!username.equals(clientUsername) && (logInTime.get(username).isAfter(withinTime) || loggedUsers.containsKey(username))) {
+		for(String username : logInTime.keySet()) {
+			boolean loggedOut = logOutTime.containsKey(username) && logOutTime.get(username).isAfter(withinTime);
+			if(!username.equals(clientUsername) && (loggedOut|| loggedUsers.containsKey(username))) {
 				//Formatting string
 				if(allUsers.equals("")) {
 					allUsers += username;
@@ -244,7 +253,7 @@ public class Server extends Thread {
 	}
 	
 	private void logout(String message) {
-		listenSockets.remove(clientUsername); 
+		logOutTime.put(clientUsername, LocalDateTime.now()); 
 		loggedUsers.remove(clientUsername); 
 		listenSockets.remove(clientUsername);
 		broadcast(clientUsername + " logged out", true); 
@@ -272,7 +281,7 @@ public class Server extends Thread {
 		}
 		return; 
 	}
-	
+
 	
 	//Checks package contents to confirm whether user/pass is correct 
 	private void userAuthenticate(TCPackage data) {
@@ -336,9 +345,7 @@ public class Server extends Thread {
 			}else {
 				packet = new TCPackage("login/fail/user");
 				packet.setContent("Username does not exist"); 
-			}
-			
-			System.out.println(loggedUsers);
+			}			
 			outToClient.writeObject(packet);
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -457,10 +464,8 @@ public class Server extends Thread {
 		    }  
 		//Timeout occurred, logout client  
 		} catch (SocketTimeoutException e) {
-			System.out.println(clientUsername + " has timed out");
 			logout("You have timed out");
 		} catch (SocketException | EOFException  e) {
-			System.out.println(clientUsername + " has closed the connection"); 
 		} catch (IOException | ClassNotFoundException e) {
 			e.printStackTrace();
 		}
