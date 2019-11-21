@@ -6,7 +6,7 @@ public class TCPackage implements Serializable {
 	private String header; 
 	private String content; 
 	private String user; 
-	private InetAddress ipAddress; 
+	private String ipAddress; 
 	private int port; 
 	
 	public TCPackage() {
@@ -48,11 +48,11 @@ public class TCPackage implements Serializable {
 		this.user = receiver;
 	}
 
-	public InetAddress getIpAddress() {
+	public String getIpAddress() {
 		return ipAddress;
 	}
 
-	public void setIpAddress(InetAddress ipAddress) {
+	public void setIpAddress(String ipAddress) {
 		this.ipAddress = ipAddress;
 	}
 

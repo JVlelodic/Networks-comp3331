@@ -32,10 +32,9 @@ public class Server extends Thread {
 	//Username and time blocked
 	private static HashMap<String, LocalDateTime> logInBlocked = new HashMap<>(); 
 	//Username and list of users who have blocked them 
-	private static HashMap<String,ArrayList<String>> blockedUsers = new HashMap<>();  
-	//Username and their respective connection sockets
-	private static HashMap<String, Socket> userSockets = new HashMap<>();
-	
+	private static HashMap<String, ArrayList<String>> blockedUsers = new HashMap<>();  
+	//Username and respective serversocket ip address and port num in string format -> "<ipAddress>:<port>"
+	private static HashMap<String, String> listenSockets = new HashMap<>();
 	
 	public Server(Socket connectionSocket) {
 		socket = connectionSocket; 
@@ -64,26 +63,39 @@ public class Server extends Thread {
 	}
 	
 	private void startPrivate(TCPackage data) {
-		String user = data.getUser(); 
-		TCPackage packet = new TCPackage("startprivate/user"); 
-		if(!users.containsKey(user)) {
-			packet.setContent("Error. " + user + " does not exit");
-		}else if(user.equals(clientUsername)) {
-			packet.setContent("Error. Cannot start private messaging with self");
-		}else if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(user)) {
-			packet.setContent("Error. " + user + " has blocked you");
-		}else if(!userSockets.containsKey(user)) {
-			packet.setContent("Error. " + user + " is not online");
-		}else {
-			packet.setHeader("private/start");
-			Socket socket = userSockets.get(user);
-			packet.setPort(socket.getPort());
-			packet.setIpAddress(socket.getInetAddress()); 
-			packet.setContent("Starting private connection with " + user);
-		}
 		try {
+			String user = data.getUser(); 
+			TCPackage packet = new TCPackage(); 
+			if(!users.containsKey(user)) {
+				packet.setContent("Error. " + user + " does not exit");
+			}else if(user.equals(clientUsername)) {
+				packet.setContent("Error. Cannot start private messaging with self");
+			}else if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(user)) {
+				packet.setContent("Error. " + user + " has blocked you");
+			}else if(blockedUsers.containsKey(user) && blockedUsers.get(user).contains(clientUsername)) {
+				packet.setContent("Error. You cannot start private messaging as you have blocked this user");
+			}else if(!listenSockets.containsKey(user)) {
+				packet.setContent("Error. " + user + " is not online");
+			}else {
+				
+					TCPackage inform = new TCPackage("private/connect");
+					inform.setUser(clientUsername);
+					inform.setContent(clientUsername + " started a private connection with you");
+					loggedUsers.get(user).writeObject(inform);
+					
+					packet.setHeader("private/start");
+					packet.setUser(user);
+					String ipPort = listenSockets.get(user);
+					String[] values = ipPort.split(":");
+					System.out.println(values[0]);
+					System.out.println(values[1]);
+					packet.setIpAddress(values[0]);
+					packet.setPort(Integer.parseInt(values[1]));
+	
+					packet.setContent("Starting private connection with " + user);
+			}
 			outToClient.writeObject(packet);
-		} catch(IOException e) {
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
@@ -123,8 +135,14 @@ public class Server extends Thread {
 		}else {
 			String allUsers = ""; 
 			for(String username : loggedUsers.keySet()) {	
-				//Spaces added to string for formatting
-				if(!username.equals(clientUsername)) allUsers += (username + "\n"); 
+				if(!username.equals(clientUsername)) {
+					//Formatting string 
+					if(allUsers.equals("")) {
+						allUsers += username; 
+					}else {
+						allUsers += ("\n" + username);
+					}
+				}
 			}
 			packet.setContent(allUsers); 
 		}
@@ -142,11 +160,20 @@ public class Server extends Thread {
 
 		for(String username : logInTime.keySet()) {	
 			if(!username.equals(clientUsername) && (logInTime.get(username).isAfter(withinTime) || loggedUsers.containsKey(username))) {
-				allUsers += (username + "\n"); 
+				//Formatting string
+				if(allUsers.equals("")) {
+					allUsers += username;
+				}else {
+					allUsers += ("\n" + username); 
+				}
 			}
 		}
 		TCPackage packet = new TCPackage("msg/user"); 
-		packet.setContent(allUsers);
+		if(allUsers.equals("")){
+			packet.setContent("No other users were online");
+		}else {
+			packet.setContent(allUsers);
+		}
 		try {
 			outToClient.writeObject(packet);
 		} catch (IOException e) {
@@ -217,8 +244,9 @@ public class Server extends Thread {
 	}
 	
 	private void logout(String message) {
-		userSockets.remove(clientUsername); 
+		listenSockets.remove(clientUsername); 
 		loggedUsers.remove(clientUsername); 
+		listenSockets.remove(clientUsername);
 		broadcast(clientUsername + " logged out", true); 
 		TCPackage logout = new TCPackage("logout/user"); 
 		logout.setContent(message);
@@ -272,10 +300,13 @@ public class Server extends Thread {
 					if(loggedUsers.containsKey(clientUsername)) {
 						packet = new TCPackage("login/fail/user"); 
 						packet.setContent("Account is already logged in. Please try another account");
+					//Achieved proper login 
 					}else {
 						loggedUsers.put(clientUsername, outToClient);
 						logInTime.put(clientUsername, LocalDateTime.now());
-						userSockets.put(clientUsername, socket);
+						//Add client serversockets' ip address and port number 
+						String ipPort = data.getIpAddress() + ":" + Integer.toString(data.getPort()); 
+						listenSockets.put(clientUsername, ipPort);
 						broadcast(clientUsername + " logged in", true); 
 						packet = new TCPackage("login/pass"); 
 						packet.setContent("You are logged in, you can now enter messages:"); 
@@ -331,7 +362,8 @@ public class Server extends Thread {
 					//send back to client
 					outToClient.writeObject(msg);
 				}else {
-					msg.setContent(clientUsername + ": " + packet.getContent());
+//					msg.setContent(clientUsername + ": " + packet.getContent());
+					msg.setContent(packet.getContent());
 					//user is logged in 
 					if(loggedUsers.containsKey(sendTo)) {
 						loggedUsers.get(sendTo).writeObject(msg);
@@ -343,7 +375,6 @@ public class Server extends Thread {
 				}
 			//user doesn't exist
 			}else {
-				outToClient.writeObject(msg); 
 				msg.setContent("Error. Invalid user"); 
 				outToClient.writeObject(msg);  
 			}
@@ -395,7 +426,7 @@ public class Server extends Thread {
 		    		userAuthenticate(data); 
 	    			break; 
 		    	case "user/broadcast":
-		    		broadcast(clientUsername + ": " + data.getContent(),false); 
+		    		broadcast("(all) " + data.getContent(),false); 
 		    		break; 
 		    	case "user/msg": 
 		    		sendMsg(data); 

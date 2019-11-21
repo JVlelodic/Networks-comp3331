@@ -7,6 +7,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 
@@ -18,9 +19,15 @@ public class Client extends Thread{
 	private static ObjectOutputStream toServer; 
 	private static ObjectInputStream fromServer; 
 	private static BufferedReader userInput; 
-	private static Thread readCommand = null; 
+//	private static Thread readCommand = null; 
+	private static ServerSocket peerListener; 
 	
-//	private static HashMap
+	//Username and their respective output sockets
+	private static HashMap<String, ObjectOutputStream> privateUsers = new HashMap<>();
+	//Username and the opened listener thread  
+	private static HashMap<String,Thread> openThreads = new HashMap<>(); 
+	
+
 	
 	//Prompt user to enter username
 	private static void checkUsername() {
@@ -42,6 +49,9 @@ public class Client extends Thread{
 			TCPackage content = new TCPackage("user/authenticate"); 
 			content.setUser(user);
 			content.setContent(password);
+			content.setPort(peerListener.getLocalPort());
+			//Returns address 127.0.0.1 
+			content.setIpAddress(InetAddress.getLoopbackAddress().getHostAddress());
 			toServer.writeObject(content);
 			
 		} catch (IOException e) {
@@ -54,12 +64,94 @@ public class Client extends Thread{
 
 		TCPackage msg = new TCPackage(); 
 
-		String body = ""; 
+		String body = user + ": "; 
 		for(int i = index; i < message.length; i++) {
 			body += (message[i] + " "); 
 		}
 		msg.setContent(body);
 		return msg; 
+	}
+	
+	private static void startPeerThread(TCPackage data, Socket client) {
+		try {
+			String peer = data.getUser();
+			ObjectOutputStream peerOut = new ObjectOutputStream(client.getOutputStream()); 
+			ObjectInputStream peerIn = new ObjectInputStream(client.getInputStream()); 
+			
+			privateUsers.put(peer, peerOut);
+			
+			Thread listen = new ClientListener(peerIn, syncLock);
+			listen.start();
+			openThreads.put(peer, listen); 
+			System.out.println(openThreads.size()); 
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private static void logOut() {
+		//Closes and messages all p2p sockets and threads
+		try {
+		
+			TCPackage msg = new TCPackage();
+			msg.setContent(user + " is logging out. Private connection has been closed");
+			for(String username : privateUsers.keySet()) {
+				ObjectOutputStream output = privateUsers.get(username); 
+				output.writeObject(msg);
+				output.close();
+			}
+//			
+//			for(String username : openThreads.get(user).interrupt()) {
+//			}
+			//Closes STDIN thread
+			openThreads.get(user).interrupt();
+			serverConnect.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return; 
+	}
+	
+	private static void peerMessage(TCPackage packet, String peer) {
+		if(privateUsers.containsKey(peer)) {
+			ObjectOutputStream peerConnect = privateUsers.get(peer); 
+			try {
+				peerConnect.writeObject(packet);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}else if(peer.equals(user)) {
+			syncLock.lock();
+			System.out.println("You cannot private message yourself");
+			syncLock.unlock();
+		}else {
+			syncLock.lock();
+			System.out.println("You do not have a private connection with this user: " + peer); 
+			syncLock.unlock();
+		}
+		return;
+	}
+	
+	private static void closePeer(String peer) {
+		ObjectOutputStream peerConnect = privateUsers.get(peer);
+		if(privateUsers.containsKey(peer)) {
+			TCPackage packet = new TCPackage();
+			packet.setContent(user + " has closed the private connection with you");
+			try {
+				peerConnect.writeObject(packet);
+				peerConnect.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			privateUsers.remove(peer); 
+			openThreads.get(peer).interrupt();
+			openThreads.remove(peer);
+		}else {
+			syncLock.lock();
+			System.out.println("You do not have a private connection with this user: " + peer);
+			syncLock.unlock();
+		}
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -76,31 +168,36 @@ public class Client extends Thread{
 		
 		//Create socket which connects to server
 		serverConnect = new Socket(serverIP, serverPort); 
-		
+				
 		toServer = new ObjectOutputStream(serverConnect.getOutputStream()); 
 		fromServer = new ObjectInputStream(serverConnect.getInputStream()); 
-		
+
 		userInput = new BufferedReader(new InputStreamReader(System.in));
 		
+		//Create ServerSocket to listen to incoming connections
+		peerListener = new ServerSocket(0);
+		
+		System.out.println(InetAddress.getLoopbackAddress().getHostAddress());
+
 		//Ask user to enter username and password 
 		checkUsername(); 
 		checkPassword(); 
+
 		
-		ServerSocket welcomeSocket = new ServerSocket(serverConnect.getLocalPort()); 
-//		while(true) {
-//			
-//		}
+		
+//		System.out.println(p2pSocket.getLocalPort());
 		
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
-//			TCPackage data = (TCPackage) fromServer.readObject(); 
 			syncLock.lock();
 			System.out.println(">> " + data.getContent()); 
 			String header = data.getHeader(); 
 			switch(header) {
-			//Login accepted and opens new thread to accept userInput
 			case "login/pass":
-				readCommand = new Client();
-				readCommand.start();
+				Thread reader = new Client(); 
+				reader.start(); 
+				openThreads.put(user, reader);
+//				readCommand = new Client();
+//				readCommand.start();
 				break; 
 			case "login/fail/retry":
 				checkPassword(); 
@@ -110,14 +207,20 @@ public class Client extends Thread{
 				checkPassword(); 
 				break; 
 			case "logout/user":
-				if(readCommand != null) readCommand.interrupt();
-				serverConnect.close();
+//				if(readCommand != null) readCommand.interrupt();
+				logOut(); 
 				return; 
-			case "msg/user":
+			case "private/start":
+				int portNum = data.getPort();
+				InetAddress ip = InetAddress.getByName(data.getIpAddress());
+				Socket privateChat = new Socket(ip, portNum); 
+				startPeerThread(data, privateChat); 
 				break; 
-			case "startprivate/user":
-				System.out.println(data.getPort());
-				System.out.println(data.getIpAddress().toString());
+			case "private/connect":
+				Socket peer = peerListener.accept();
+				startPeerThread(data, peer); 
+				break;
+			case "msg/user":
 				break; 
 			default:
 				System.out.println("Invalid header"); 
@@ -197,14 +300,33 @@ public class Client extends Thread{
 						System.out.println("Missing arguments for type \"startprivate\": startprivate <user>"); 
 						continue; 
 					}
-					packet = new TCPackage("user/startprivate"); 
+					packet = new TCPackage("user/startprivate");
+					packet.setUser(message[1]);
 					break; 
+				case "private": 
+					if(message.length < 3) {
+						System.out.println("Missing arguments for type \"private\": private <user> <message>"); 
+						continue; 
+					}
+					packet = sendMessage(message,2);
+					packet.setContent("(private) " + packet.getContent());
+					String client = message[1]; 
+					peerMessage(packet, client); 
+					continue; 
+				case "stopprivate":
+					if(message.length != 2) {
+						System.out.println("Missing arguments for type \"stopprivate\": stopprivate <user>"); 
+						continue; 
+					}
+					closePeer(message[1]);
+					continue; 
 				default:
 					System.out.println("Error. Invalid command");
 					continue; 
 				}
 				toServer.writeObject(packet);
-			}
+			}			
+		} catch ()
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
