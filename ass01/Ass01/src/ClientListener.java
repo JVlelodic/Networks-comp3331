@@ -21,7 +21,7 @@ public class ClientListener extends Thread {
 	
 	public void run() {
 		try {
-			for(TCPackage data = (TCPackage) peerIn.readObject(); data != null && !Thread.currentThread().isInterrupted(); data = (TCPackage) peerIn.readObject()) {
+			for(TCPackage data = (TCPackage) peerIn.readObject(); data != null; data = (TCPackage) peerIn.readObject()) {
 				syncLock.lock();
 				System.out.println(">> " + data.getContent()); 
 				String header = data.getHeader(); 

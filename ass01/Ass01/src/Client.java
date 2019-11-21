@@ -82,9 +82,7 @@ public class Client extends Thread{
 			
 			Thread listen = new ClientListener(peerIn, syncLock);
 			listen.start();
-			openThreads.put(peer, listen); 
-			System.out.println(openThreads.size()); 
-			
+			openThreads.put(peer, listen); 			
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -101,9 +99,7 @@ public class Client extends Thread{
 				output.writeObject(msg);
 				output.close();
 			}
-//			
-//			for(String username : openThreads.get(user).interrupt()) {
-//			}
+
 			//Closes STDIN thread
 			openThreads.get(user).interrupt();
 			serverConnect.close();
@@ -177,8 +173,6 @@ public class Client extends Thread{
 		//Create ServerSocket to listen to incoming connections
 		peerListener = new ServerSocket(0);
 		
-		System.out.println(InetAddress.getLoopbackAddress().getHostAddress());
-
 		//Ask user to enter username and password 
 		checkUsername(); 
 		checkPassword(); 
@@ -326,7 +320,6 @@ public class Client extends Thread{
 				}
 				toServer.writeObject(packet);
 			}			
-		} catch ()
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
