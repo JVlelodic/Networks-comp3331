@@ -301,6 +301,10 @@ public class Client extends Thread{
 						System.out.println("Missing arguments for type \"startprivate\": startprivate <user>"); 
 						continue; 
 					}
+					if(privateUsers.containsKey(message[1])) {
+						System.out.println("Error. Already have a private connection with " + message[1]);
+						continue; 
+					}
 					packet = new TCPackage("user/startprivate");
 					packet.setUser(message[1]);
 					break; 
