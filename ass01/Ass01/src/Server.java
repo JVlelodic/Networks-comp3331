@@ -368,7 +368,6 @@ public class Server extends Thread {
 					//send back to client
 					outToClient.writeObject(msg);
 				}else {
-//					msg.setContent(clientUsername + ": " + packet.getContent());
 					msg.setContent(packet.getContent());
 					//user is logged in 
 					if(loggedUsers.containsKey(sendTo)) {
