@@ -59,7 +59,7 @@ public class Client extends Thread{
 			content.setContent(password);
 			content.setPort(peerListener.getLocalPort());
 			//Returns address 127.0.0.1 
-			content.setIpAddress(InetAddress.getLoopbackAddress().getHostAddress());
+			content.setIpAddress(peerListener.getInetAddress().getHostAddress());
 			toServer.writeObject(content);
 			
 		} catch (IOException e) {
