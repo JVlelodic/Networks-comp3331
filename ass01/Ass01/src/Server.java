@@ -77,7 +77,7 @@ public class Server extends Thread {
 			String user = data.getUser(); 
 			TCPackage packet = new TCPackage(); 
 			if(!users.containsKey(user)) {
-				packet.setContent("Error. " + user + " does not exit");
+				packet.setContent("Error. " + user + " does not exist");
 			}else if(user.equals(clientUsername)) {
 				packet.setContent("Error. Cannot start private messaging with self");
 			}else if(blockedUsers.containsKey(clientUsername) && blockedUsers.get(clientUsername).contains(user)) {
@@ -114,7 +114,6 @@ public class Server extends Thread {
 		TCPackage packet;
 		packet = new TCPackage("msg/user"); 
 
-		
 		//No such user
 		if(!users.containsKey(blocked)) {
 			packet.setContent("Error. User does not exist");
@@ -411,7 +410,6 @@ public class Server extends Thread {
 		while (true){
 		    // accept connection from connection queue and starts a new thread for each new client
 		    Socket connectionSocket = welcomeSocket.accept();
-//		    connectionSocket.setSoTimeout(timeout);
 		    connectionSocket.setSoTimeout(timeout*1000);
 		    new Server(connectionSocket).start(); 
 		}
@@ -422,11 +420,9 @@ public class Server extends Thread {
 			outToClient = new ObjectOutputStream(socket.getOutputStream());
 		   	inFromClient = new ObjectInputStream(socket.getInputStream());
 		   	
-		   	
 		    for(TCPackage data = (TCPackage) inFromClient.readObject(); data != null; data = (TCPackage) inFromClient.readObject()) {
 		    	synLock.lock();
 		    	String header = data.getHeader(); 
-		    	System.out.println(header);
 		    	switch(header){
 		    	case "user/authenticate":
 		    		clientUsername = data.getUser(); 

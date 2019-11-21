@@ -4,19 +4,29 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.HashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+//Thread that listens to peer to peer connections
 public class ClientListener extends Thread {
 	
-//	private Socket peerSocket; 
-//	private ObjectOutputStream peerOut; 
+	private HashMap<String, ObjectOutputStream> privateUsers;
+	private HashMap<String, Thread> openThreads; 
 	private ObjectInputStream peerIn; 
 	private ReentrantLock syncLock; 
 	
-	public ClientListener(ObjectInputStream peerIn, ReentrantLock lock) {
-//		this.peerSocket = socket; 
+	public ClientListener(HashMap<String, ObjectOutputStream> privateUsers, HashMap<String,Thread> openThreads , ObjectInputStream peerIn, ReentrantLock lock) {
+		this.privateUsers = privateUsers;
+		this.openThreads = openThreads;
 		this.peerIn = peerIn; 
 		this.syncLock = lock; 
+	}
+	
+	//User has closed the connection so remove from HashMaps 
+	public void removeThread(String user) {
+		openThreads.remove(user);
+		privateUsers.remove(user);
+		return; 
 	}
 	
 	public void run() {
@@ -28,6 +38,9 @@ public class ClientListener extends Thread {
 				switch(header) {
 				case "msg/user":
 					break; 
+				case "private/close":
+					removeThread(data.getUser());
+					break;
 				default:
 					System.out.println("Invalid header"); 
 					break; 

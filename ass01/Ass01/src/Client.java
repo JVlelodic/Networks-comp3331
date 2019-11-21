@@ -19,11 +19,11 @@ public class Client extends Thread{
 	private static ObjectOutputStream toServer; 
 	private static ObjectInputStream fromServer; 
 	private static BufferedReader userInput; 
-//	private static Thread readCommand = null; 
 	private static ServerSocket peerListener; 
 	
 	//Username and their respective output sockets
 	private static HashMap<String, ObjectOutputStream> privateUsers = new HashMap<>();
+	
 	//Username and the opened listener thread  
 	private static HashMap<String,Thread> openThreads = new HashMap<>(); 
 	
@@ -80,6 +80,7 @@ public class Client extends Thread{
 		return msg; 
 	}
 	
+	//Opens thread to listen to new peer connection
 	private static void startPeerThread(TCPackage data, Socket client) {
 		try {
 			String peer = data.getUser();
@@ -88,7 +89,7 @@ public class Client extends Thread{
 			
 			privateUsers.put(peer, peerOut);
 			
-			Thread listen = new ClientListener(peerIn, syncLock);
+			Thread listen = new ClientListener(privateUsers, openThreads, peerIn, syncLock);
 			listen.start();
 			openThreads.put(peer, listen); 			
 		} catch (IOException e) {
@@ -96,12 +97,14 @@ public class Client extends Thread{
 		}
 	}
 	
+	//User logouts 
 	private static void logOut() {
 		//Closes and messages all p2p sockets and threads
 		try {
 		
-			TCPackage msg = new TCPackage();
+			TCPackage msg = new TCPackage("private/close");
 			msg.setContent(user + " is logging out. Private connection has been closed");
+			msg.setUser(user);
 			for(String username : privateUsers.keySet()) {
 				ObjectOutputStream output = privateUsers.get(username); 
 				output.writeObject(msg);
@@ -117,6 +120,7 @@ public class Client extends Thread{
 		return; 
 	}
 	
+	//Private messaging in P2P
 	private static void peerMessage(TCPackage packet, String peer) {
 		if(privateUsers.containsKey(peer)) {
 			ObjectOutputStream peerConnect = privateUsers.get(peer); 
@@ -137,11 +141,13 @@ public class Client extends Thread{
 		return;
 	}
 	
+	//Closing a private P2P Socket
 	private static void closePeer(String peer) {
 		ObjectOutputStream peerConnect = privateUsers.get(peer);
 		if(privateUsers.containsKey(peer)) {
-			TCPackage packet = new TCPackage();
+			TCPackage packet = new TCPackage("private/close");
 			packet.setContent(user + " has closed the private connection with you");
+			packet.setUser(user);
 			try {
 				peerConnect.writeObject(packet);
 				peerConnect.close();
@@ -185,6 +191,7 @@ public class Client extends Thread{
 		checkUsername(); 
 		checkPassword(); 
 		
+		//Receives messages from server
 		for(TCPackage data = (TCPackage) fromServer.readObject(); data != null; data = (TCPackage) fromServer.readObject()) {
 			syncLock.lock();
 			System.out.println(">> " + data.getContent()); 
@@ -225,9 +232,8 @@ public class Client extends Thread{
 		}	
 	} 
 	
+	//Reads STDIN for commands
 	public void run() { 
-//		//read data do something
-
 		try {
 			for(String line = userInput.readLine(); line != null && !Thread.currentThread().isInterrupted(); line = userInput.readLine()) {
 				String[] message = line.trim().split(" ");
